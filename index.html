@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Spew13 — Neon Portal</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    /* ============================
+       RESET + LAYOUT
+       ============================ */
+    * { box-sizing: border-box; }
+    html,body { height: 100%; margin: 0; background: #000; font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
+    :root{
+      --lime1: #7bff00;
+      --lime2: #c7ff4d;
+      --accent: #00ffd5;
+      --glass: rgba(255,255,255,0.03);
+      --neonGlow: 0 0 8px var(--lime1), 0 0 22px var(--lime1), 0 0 40px rgba(0,255,0,0.12);
+    }
+
+    /* ============================
+       FULLSCREEN STAGE
+       ============================ */
+    .stage {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      display: grid;
+      place-items: center;
+      color: var(--lime1);
+      text-align: center;
+      isolation: isolate;
+      background:
+        radial-gradient(1200px 600px at 10% 10%, rgba(123,255,0,0.03), transparent 10%),
+        radial-gradient(800px 400px at 90% 90%, rgba(0,255,213,0.02), transparent 15%),
+        linear-gradient(180deg, rgba(0,0,0,0.95), rgba(0,0,0,0.98));
+    }
+
+    /* ============================
+       CANVAS TRAILS (behind UI)
+       ============================ */
+    canvas#trail {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* ============================
+       HEADER / LOGO
+       ============================ */
+    header {
+      position: relative;
+      z-index: 5;
+      pointer-events: none;
+    }
+    .logo {
+      font-family: 'Press Start 2P', monospace;
+      font-size: clamp(18px, 4vw, 44px);
+      letter-spacing: 2px;
+      color: var(--lime2);
+      text-shadow: var(--neonGlow);
+      pointer-events: auto;
+      display: inline-block;
+      margin-bottom: 6px;
+    }
+
+    /* Glitch effect */
+    .glitch {
+      position: relative;
+      display: inline-block;
+    }
+    .glitch::before,
+    .glitch::after {
+      content: attr(data-text);
+      position: absolute;
+      left: 0; top: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      mix-blend-mode: screen;
+      opacity: 0.8;
+    }
+    .glitch::before { color: #00ffd5; transform: translate(-2px, -2px); clip-path: polygon(0 0,100% 0,100% 45%,0 45%); animation: glitchTop 2.7s infinite linear; }
+    .glitch::after  { color: #ff58ff; transform: translate(2px, 2px); clip-path: polygon(0 55%,100% 55%,100% 100%,0 100%); animation: glitchBot 3.1s infinite linear; }
+    @keyframes glitchTop { 0%{transform:translate(-2px,-2px)} 20%{transform:translate(4px,-4px)} 40%{transform:translate(-3px,2px)} 60%{transform:translate(3px,-1px)} 100%{transform:translate(-2px,-2px)} }
+    @keyframes glitchBot { 0%{transform:translate(2px,2px)} 25%{transform:translate(-3px,3px)} 50%{transform:translate(2px,-2px)} 75%{transform:translate(-1px,4px)} 100%{transform:translate(2px,2px)} }
+
+    /* Subtitle */
+    .tagline {
+      color: #c7ff4d;
+      font-weight: 700;
+      margin-top: 6px;
+      text-shadow: 0 0 6px rgba(199,255,77,0.25);
+      font-size: 12px;
+      pointer-events: none;
+    }
+
+    /* ============================
+       PANEL (center controls)
+       ============================ */
+    .panel {
+      z-index: 5;
+      width: min(980px, 92vw);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 18px;
+      padding: clamp(18px, 3.5vw, 36px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.6), var(--neonGlow);
+      backdrop-filter: blur(6px) saturate(120%);
+      position: relative;
+      pointer-events: auto;
+    }
+
+    .btn-row { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-top:12px; }
+    .btn {
+      --padx: 18px;
+      padding: 12px var(--padx);
+      background: linear-gradient(135deg, rgba(123,255,0,0.12), rgba(0,255,213,0.06));
+      color: #001a00;
+      border-radius: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border: 1px solid rgba(123,255,0,0.28);
+      box-shadow: 0 6px 18px rgba(0,255,0,0.06), 0 0 10px rgba(123,255,0,0.12);
+      cursor: pointer;
+      transition: transform 220ms cubic-bezier(.2,.9,.2,1), box-shadow 220ms;
+      position: relative;
+      overflow: hidden;
+      z-index: 2;
+    }
+    .btn:focus { outline: 3px solid rgba(123,255,0,0.14); }
+    .btn:hover { transform: translateY(-6px) rotate(-1.5deg) scale(1.03); box-shadow: 0 18px 40px rgba(0,255,0,0.12), var(--neonGlow); }
+
+    /* micro neon edge animation */
+    .btn::after{
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+      transform: translateX(-110%);
+      transition: transform 500ms ease;
+      mix-blend-mode: overlay;
+      pointer-events: none;
+    }
+    .btn:hover::after { transform: translateX(110%); }
+
+    /* big hero about */
+    .hero-about {
+      color: #dfffb0;
+      font-size: 14px;
+      line-height: 1.5;
+      margin-top: 14px;
+      text-shadow: 0 0 6px rgba(123,255,0,0.06);
+    }
+
+    /* ============================
+       FLOATING SHAPES (parallax)
+       ============================ */
+    .float-shapes { position:absolute; inset:0; z-index:1; pointer-events:none; }
+    .shape {
+      position:absolute;
+      width: 90px; height: 90px; border-radius: 20px;
+      background: linear-gradient(135deg, rgba(123,255,0,0.18), rgba(0,255,213,0.06));
+      filter: blur(4px);
+      transform-origin: center;
+      mix-blend-mode: screen;
+      opacity: .8;
+      animation: drift 8s ease-in-out infinite alternate;
+    }
+    .shape.s1 { top:6%; left:12%; width:120px;height:120px; animation-duration:9s; border-radius:30px; }
+    .shape.s2 { bottom:15%; right:8%; width:70px;height:70px; animation-duration:6.5s; }
+    .shape.s3 { top:30%; right:25%; width:100px;height:100px; animation-duration:11s; border-radius:50%; }
+    .shape.s4 { left:40%; top:70%; width:80px;height:80px; animation-duration:7.5s; transform:rotate(20deg); }
+
+    @keyframes drift { to { transform: translateY(-30px) rotate(20deg) } }
+
+    /* ============================
+       GALLERY / MODAL
+       ============================ */
+    .modal {
+      position: absolute;
+      z-index: 40;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 260ms ease;
+    }
+    .modal.open { pointer-events: auto; opacity: 1; }
+    .modal-panel {
+      width: min(880px, 94vw);
+      background: linear-gradient(180deg, rgba(0,0,0,0.65), rgba(0,0,0,0.5));
+      border: 1px solid rgba(123,255,0,0.12);
+      padding: 20px;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6), var(--neonGlow);
+      transform: translateY(-8px) scale(.98);
+      transition: transform 260ms cubic-bezier(.2,.9,.2,1);
+    }
+    .modal.open .modal-panel { transform: translateY(0) scale(1); }
+
+    .modal .close {
+      display:inline-block; margin-left: auto; background:transparent; border:1px solid rgba(255,255,255,0.04); color:var(--lime2);
+      padding:8px 10px; border-radius:8px; cursor:pointer;
+    }
+
+    /* gallery grid */
+    .gallery-grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); margin-top:12px; }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.16)); padding:12px; border-radius:10px;
+      border: 1px solid rgba(123,255,0,0.06); height:140px; display:flex; align-items:center; justify-content:center;
+      color: #dfffb0; font-weight:700; text-align:center; text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+
+    /* ============================
+       FIXED LIME BACK BUTTON (centered under every element)
+       ============================ */
+    .back-wrap {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 12px;
+      z-index: 60;
+      pointer-events: auto;
+      width: calc(100% - 40px);
+      max-width: 420px;
+      display:flex; justify-content:center;
+      /* intentionally visible even if page tried to scroll */
+    }
+    .back {
+      background: linear-gradient(90deg, #bfff5a, #7bff00 60%);
+      padding: 12px 26px;
+      border-radius: 999px;
+      border: 2px solid rgba(0,0,0,0.12);
+      box-shadow: 0 14px 30px rgba(0,255,0,0.08), 0 0 36px rgba(123,255,0,0.14);
+      font-weight:900;
+      letter-spacing:1px;
+      cursor:pointer;
+      transform-origin:center;
+      transition: transform 140ms ease, box-shadow 140ms ease;
+    }
+    .back:active { transform: translateY(3px) scale(.99); }
+    .back:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 30px 60px rgba(0,255,0,0.16), var(--neonGlow); }
+
+    /* ============================
+       FOOTER (small)
+       ============================ */
+    footer.small {
+      position: absolute; bottom: 68px; left: 0; width: 100%; text-align:center; z-index: 30; color:#9aff7a; font-size:11px; opacity:.8;
+      pointer-events:none;
+      text-shadow: 0 0 4px rgba(123,255,0,0.06);
+    }
+
+    /* ============================
+       RESPONSIVE & REDUCTIONS
+       ============================ */
+    @media (max-width:520px){
+      .panel { padding: 14px; border-radius:12px; }
+      .btn { padding:10px 12px; font-size:12px; }
+      .back { padding:10px 18px; font-size:12px; max-width: 90%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage" aria-label="Spew13 Neon Portal">
+    <!-- Canvas for neon trails -->
+    <canvas id="trail"></canvas>
+
+    <!-- Decorative floating shapes -->
+    <div class="float-shapes" aria-hidden="true">
+      <div class="shape s1"></div>
+      <div class="shape s2"></div>
+      <div class="shape s3"></div>
+      <div class="shape s4"></div>
+    </div>
+
+    <!-- Header -->
+    <header>
+      <div class="logo glitch" data-text="SPEW13">SPEW13</div>
+      <div class="tagline">NEON MINI-GAMES • FAST • LIME GREEN</div>
+    </header>
+
+    <!-- Main panel -->
+    <main class="panel" role="main" aria-labelledby="welcome">
+      <h2 id="welcome" style="margin:0;color:var(--lime2);font-size:14px;letter-spacing:1px;text-shadow:var(--neonGlow);">WELCOME TO SPEW13</h2>
+
+      <p class="hero-about">Spew13 is an innovative & fun gaming portal — neon UI, instant play mini-games, and regular drops of new content. Play, share, win, and flex your best scores.</p>
+
+      <div class="btn-row" role="navigation" aria-label="Main actions">
+        <button class="btn" id="playBtn" aria-controls="games">Play Games</button>
+        <button class="btn" id="galleryBtn" aria-controls="galleryModal">Gallery</button>
+        <button class="btn" id="helpBtn" aria-controls="helpModal">Help</button>
+        <button class="btn" id="contactBtn" aria-controls="contactModal">Contact</button>
+        <button class="btn" id="aboutBtn" aria-controls="aboutModal">About</button>
+      </div>
+
+      <div class="hero-about" style="opacity:.95;">
+        <strong>Special Thanks:</strong> Jayce Rich — <em>Steal A Fluff</em>. New games drop frequently. ENJOY!
+      </div>
+    </main>
+
+    <!-- Small footer text above back -->
+    <footer class="small" aria-hidden="true">&copy; 2025 Spew13 — neon portal • built with chaos & lime</footer>
+
+    <!-- Fixed Back Button centered at bottom -->
+    <div class="back-wrap">
+      <button class="back" id="backButton" aria-label="Back to Spew13 homepage">← Back to Spew13</button>
+    </div>
+
+    <!-- Modals (gallery, about, help, contact) -->
+    <div class="modal" id="galleryModal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-panel" role="document">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <h3 style="margin:0;color:var(--lime2);">Gallery</h3>
+          <button class="close" data-close="galleryModal" aria-label="Close gallery">Close</button>
+        </div>
+        <div class="gallery-grid" id="gallery">
+          <div class="card">Steal A Fluff — Top Score</div>
+          <div class="card">BLOCKBLAST! — Puzzle Mode</div>
+          <div class="card">Iguana Goobers! — Mascot</div>
+          <div class="card">Spew13 — Neon UI</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="aboutModal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-panel" role="document">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <h3 style="margin:0;color:var(--lime2);">About Spew13</h3>
+          <button class="close" data-close="aboutModal" aria-label="Close about">Close</button>
+        </div>
+        <div style="margin-top:10px;color:#dfffb0;line-height:1.5;text-align:left;">
+          <p>Spew13 is an innovative and fun gaming portal designed to bring together a collection of mini-games and interactive experiences in one neon-themed interface. Our goal is to make gaming accessible, fast, and visually exciting for users of all ages.</p>
+          <p>Each section in Spew13 is carefully crafted to offer a unique experience: the Contact page allows players to send feedback directly to the creators, the Help page provides guidance and instructions, and the Gallery showcases highlights and achievements within the games.</p>
+          <p>Spew13 embraces a vibrant neon aesthetic, emphasizing glowing elements, dynamic buttons, and interactive design features that engage users visually while remaining intuitive and easy to navigate.</p>
+          <p>Whether you are here to explore, play, or provide feedback, Spew13 is committed to delivering a smooth, enjoyable, and memorable gaming experience. Thank you for being part of the Spew13 community!</p>
+          <p><strong>Special Thanks:</strong> Jayce Rich for Steal A Fluff!</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-panel" role="document">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <h3 style="margin:0;color:var(--lime2);">Help</h3>
+          <button class="close" data-close="helpModal" aria-label="Close help">Close</button>
+        </div>
+        <div style="margin-top:10px;color:#dfffb0;line-height:1.5;text-align:left;">
+          <p>Controls and tips appear inside each game. Use keyboard or touch. If a game is laggy, try toggling fullscreen for better performance. Report issues in Contact.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="contactModal" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="modal-panel" role="document">
+        <div style="display:flex;gap:12px;align-items:center;">
+          <h3 style="margin:0;color:var(--lime2);">Contact</h3>
+          <button class="close" data-close="contactModal" aria-label="Close contact">Close</button>
+        </div>
+        <div style="margin-top:10px;color:#dfffb0;line-height:1.5;text-align:left;">
+          <p>Want to send feedback? Drop an email to <strong>admin@spew13.example</strong> or add an in-site contact form later. We read everything!</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ============================
+       BASIC UTIL FUNCS & MODALS
+       ============================ */
+    function $(sel){ return document.querySelector(sel); }
+    function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
+
+    // open modal helper
+    function openModal(id){
+      closeAllModals();
+      const m = document.getElementById(id);
+      if(!m) return;
+      m.classList.add('open');
+      m.setAttribute('aria-hidden','false');
+    }
+    function closeModal(id){
+      const m = document.getElementById(id);
+      if(!m) return;
+      m.classList.remove('open');
+      m.setAttribute('aria-hidden','true');
+    }
+    function closeAllModals(){
+      $all('.modal.open').forEach(m=>{
+        m.classList.remove('open'); m.setAttribute('aria-hidden','true');
+      });
+    }
+
+    // wire buttons
+    document.getElementById('galleryBtn').addEventListener('click',()=>openModal('galleryModal'));
+    document.getElementById('aboutBtn').addEventListener('click',()=>openModal('aboutModal'));
+    document.getElementById('helpBtn').addEventListener('click',()=>openModal('helpModal'));
+    document.getElementById('contactBtn').addEventListener('click',()=>openModal('contactModal'));
+    document.getElementById('backButton').addEventListener('click',()=>{
+      // Back button behavior — customize to your homepage or a URL
+      // For now: tiny bounce, then close modals
+      backButtonBounce();
+      closeAllModals();
+    });
+
+    // close buttons inside modals
+    $all('.close').forEach(btn=>{
+      btn.addEventListener('click', e => {
+        const id = btn.getAttribute('data-close');
+        if(id) closeModal(id);
+        else closeAllModals();
+      });
+    });
+
+    // keyboard escape
+    document.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape') closeAllModals();
+    });
+
+    function backButtonBounce(){
+      const b = document.getElementById('backButton');
+      b.animate([
+        { transform: 'translateY(0) scale(1)' },
+        { transform: 'translateY(-10px) scale(1.02)' },
+        { transform: 'translateY(0) scale(1)' }
+      ], { duration: 420, easing: 'cubic-bezier(.2,.9,.2,1)'});
+    }
+
+    /* ============================
+       NEON TRAIL CANVAS (cursor trail)
+       ============================ */
+    (function neonTrail(){
+      const canvas = document.getElementById('trail');
+      const ctx = canvas.getContext('2d');
+      let w = canvas.width = innerWidth;
+      let h = canvas.height = innerHeight;
+      const particles = [];
+      const maxP = 110;
+
+      window.addEventListener('resize', ()=>{
+        w = canvas.width = innerWidth; h = canvas.height = innerHeight;
+      });
+
+      // mouse / touch
+      const mouse = { x: w/2, y: h/2, vx:0, vy:0 };
+      window.addEventListener('mousemove', (e)=>{ mouse.x = e.clientX; mouse.y = e.clientY; });
+      window.addEventListener('touchmove', (e)=>{
+        const t = e.touches[0];
+        if(t){ mouse.x = t.clientX; mouse.y = t.clientY; }
+      }, { passive:true });
+
+      function spawn(){
+        if(particles.length > maxP) particles.shift();
+        particles.push({
+          x: mouse.x + (Math.random()-0.5)*12,
+          y: mouse.y + (Math.random()-0.5)*12,
+          life: 1,
+          r: Math.random()*3 + 1,
+          hue: 100 + Math.random()*80
+        });
+      }
+
+      function update(){
+        // spawn rate
+        spawn(); if(Math.random() > 0.6) spawn();
+        for(let i=0;i<particles.length;i++){
+          const p = particles[i];
+          p.x += (Math.random()-0.5)*4;
+          p.y += (Math.random()-0.5)*4 - 0.6;
+          p.life -= 0.016 + Math.random()*0.01;
+        }
+        // remove dead
+        for(let i=particles.length-1;i>=0;i--) if(particles[i].life <= 0) particles.splice(i,1);
+      }
+
+      function draw(){
+        ctx.clearRect(0,0,w,h);
+        for(const p of particles){
+          ctx.beginPath();
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r*6);
+          g.addColorStop(0, `hsla(${p.hue},100%,60%,${p.life*0.9})`);
+          g.addColorStop(0.6, `hsla(${p.hue+30},90%,55%,${p.life*0.2})`);
+          g.addColorStop(1, `hsla(${p.hue+60},80%,30%,0)`);
+          ctx.fillStyle = g;
+          ctx.arc(p.x, p.y, p.r*6, 0, Math.PI*2);
+          ctx.fill();
+        }
+      }
+
+      function loop(){
+        update();
+        draw();
+        requestAnimationFrame(loop);
+      }
+      loop();
+    })();
+
+    /* ============================
+       PARALLAX FOR FLOATING SHAPES
+       ============================ */
+    (function parallax(){
+      const stage = document.getElementById('stage');
+      const shapes = document.querySelectorAll('.shape');
+      stage.addEventListener('mousemove', (e)=>{
+        const cx = innerWidth/2, cy = innerHeight/2;
+        const dx = (e.clientX - cx)/cx;
+        const dy = (e.clientY - cy)/cy;
+        shapes.forEach((el, i)=>{
+          const depth = (i+1) * 6;
+          el.style.transform = `translate3d(${dx*depth}px, ${dy*depth}px, 0) rotate(${dx*20}deg)`;
+        });
+      });
+    })();
+
+    /* ============================
+       OPTIONAL: Play button example
+       (shows how you could launch a game)
+       ============================ */
+    document.getElementById('playBtn').addEventListener('click', ()=>{
+      // demo: pop a small modal with game links — replace with your game links later
+      const panel = document.createElement('div');
+      panel.style.position = 'fixed';
+      panel.style.zIndex = 80;
+      panel.style.left = '50%';
+      panel.style.top = '50%';
+      panel.style.transform = 'translate(-50%,-50%)';
+      panel.style.padding = '18px';
+      panel.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.7))';
+      panel.style.border = '1px solid rgba(123,255,0,0.08)';
+      panel.style.borderRadius = '12px';
+      panel.style.boxShadow = '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(0,255,0,0.08)';
+      panel.innerHTML = '<div style="color:var(--lime2);font-weight:800;margin-bottom:10px;">Play — Choose a Game</div>';
+      const list = ['Steal A Fluff', 'BLOCKBLAST!', 'Iguana Goobers!'];
+      list.forEach(name=>{
+        const b = document.createElement('button');
+        b.textContent = name; b.className = 'btn';
+        b.style.display='block'; b.style.margin='8px 0';
+        b.onclick = ()=> { panel.remove(); alert("Launching: "+name+" — replace this with actual game link."); };
+        panel.appendChild(b);
+      });
+      const close = document.createElement('button'); close.textContent='Close'; close.className='close';
+      close.style.marginTop='6px'; close.onclick=()=>panel.remove();
+      panel.appendChild(close);
+      document.body.appendChild(panel);
+    });
+
+    /* ============================
+       NICE: small entrance animation
+       ============================ */
+    window.addEventListener('load', ()=>{
+      document.querySelectorAll('.panel, .logo, .btn').forEach((el,i)=>{
+        el.animate([{ opacity:0, transform:'translateY(8px) scale(.995)' }, { opacity:1, transform:'translateY(0) scale(1)' }], { duration: 420, delay: i*40, easing: 'cubic-bezier(.2,.9,.2,1)' });
+      });
+    });
+
+    /* ============================
+       Accessibility: Trap focus in modal when open
+       (simple implementation)
+       ============================ */
+    document.addEventListener('focusin', (e)=>{
+      const openModalEl = document.querySelector('.modal.open');
+      if(!openModalEl) return;
+      if(!openModalEl.contains(e.target)){
+        // move focus to the modal panel
+        const panel = openModalEl.querySelector('.modal-panel');
+        if(panel) panel.focus();
+      }
+    });
+  </script>
+</body>
+</html>
